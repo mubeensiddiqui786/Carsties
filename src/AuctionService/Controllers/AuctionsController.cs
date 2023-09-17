@@ -5,6 +5,7 @@ using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Contracts;
 using MassTransit;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
@@ -50,11 +51,13 @@ namespace AuctionService.Controllers
 
         }
 
+        [Authorize]
         [HttpPost]
         public async Task<ActionResult<AuctionDto>> CreateAuction(CreateAuctionDto createAuctionDto)
         {
             var auction = _mapper.Map<Auction>(createAuctionDto);
-            //TODO add seller to profile
+            
+            auction.Seller = User.Identity.Name;
 
             _context.Add(auction);
 
@@ -69,12 +72,15 @@ namespace AuctionService.Controllers
             return CreatedAtAction(nameof(GetAuctionById), new { auction.Id }, newAuction);
         }
 
+        [Authorize]
         [HttpPut("{id}")]
         public async Task<ActionResult> UpdateAuction(Guid id, UpdatedAuctionDto updatedAuctionDto)
         {
             var auction = await _context.Auctions.Include(x => x.Item).FirstOrDefaultAsync(x => x.Id == id);
 
             if (auction == null) return NotFound();
+
+            if (auction.Seller != User.Identity.Name) return Forbid();
 
             auction.Item.Make = updatedAuctionDto.Make ?? auction.Item.Make;
             auction.Item.Model = updatedAuctionDto.Model ?? auction.Item.Model;
@@ -97,6 +103,8 @@ namespace AuctionService.Controllers
             var auction = await _context.Auctions.FindAsync(id);
 
             if (auction == null) return NotFound();
+
+            if (auction.Seller != User.Identity.Name) return Forbid();
 
             _context.Auctions.Remove(auction);
 
